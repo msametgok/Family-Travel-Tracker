@@ -25,7 +25,7 @@ let users = [
 ];
 
 async function checkVisisted() {
-  const result = await db.query("SELECT country_code FROM visited_countries");
+  const result = await db.query(`SELECT country_code FROM visited_countries JOIN users ON user_id = users.id WHERE user_id = ${currentUserId}`);
   let countries = [];
   result.rows.forEach((country) => {
     countries.push(country.country_code);
@@ -42,21 +42,15 @@ app.get("/", async (req, res) => {
   });
 });
 app.post("/add", async (req, res) => {
-  const input = req.body["country"];
+  const input = req.body.country.toLowerCase();
 
   try {
-    const result = await db.query(
-      "SELECT country_code FROM countries WHERE LOWER(country_name) LIKE '%' || $1 || '%';",
-      [input.toLowerCase()]
-    );
-
+    const result = await db.query(`SELECT country_code FROM countries WHERE LOWER(country_name) LIKE '%${input}%'`);
     const data = result.rows[0];
     const countryCode = data.country_code;
     try {
       await db.query(
-        "INSERT INTO visited_countries (country_code) VALUES ($1)",
-        [countryCode]
-      );
+        `INSERT INTO visited_countries (country_code, user_id) VALUES ('${countryCode}', ${currentUserId})`);
       res.redirect("/");
     } catch (err) {
       console.log(err);
@@ -65,11 +59,30 @@ app.post("/add", async (req, res) => {
     console.log(err);
   }
 });
-app.post("/user", async (req, res) => {});
+app.post("/user", async (req, res) => {
+const userId = req.body.user;
+if(userId) {
+  currentUserId = userId
+  res.redirect('/')
+}
+else {
+  console.log(userId);
+  res.render('new.ejs')
+}
+});
 
 app.post("/new", async (req, res) => {
   //Hint: The RETURNING keyword can return the data that was inserted.
   //https://www.postgresql.org/docs/current/dml-returning.html
+
+  const name = req.body.name;
+  const color = req.body.color;
+
+  const result = await db.query(`INSERT INTO users (name, color) VALUES ('${name}', '${color}') RETURNING *`)
+  users.push(result.rows[0])
+  currentUserId = result.rows[0].id;
+
+  res.redirect('/')
 });
 
 app.listen(port, () => {
